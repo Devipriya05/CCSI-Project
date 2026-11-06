@@ -1,0 +1,34 @@
+.venv/
+__pycache__/
+*.pyc
+app_backup*.py
+modules backup/
+modules copy backup/
+evaluation_results/
+evaluation_results_backup/
+database/*.db
+database/*.sqlite
+database/*.sqlite3
+.env
+.streamlit/secrets.toml
+
+# Local datasets
+data/
+
+# Evaluation outputs and reports
+hybrid_evaluation_results.csv
+models/confusion_matrix*.png
+models/evaluation_report.csv
+
+# Backup and candidate models
+models/*candidate*.joblib
+*_backup.py
+
+# Development and testing scripts
+test_*.py
+diagnose_model.py
+evaluate_*.py
+independent_evaluation*.py
+inspect_*.py
+prepare_dataset.py
+train_model.py
