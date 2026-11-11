@@ -183,9 +183,47 @@ ESCALATION_WORDS = {
 }
 
 
+_NEGATIVE_EMOTIONS = {"anger": 3, "frustration": 2, "sadness": 1, "anxiety": 1}
+
+
 def rule_sentiment(text: str) -> dict:
+    """Sentiment/risk indicators derived from the emotion_analysis module.
+
+    Falls back to the original small keyword list if that module is missing.
+    """
+    module = MODULES.get("emotion_analysis")
+    analyze = getattr(module, "analyze_emotion", None) if module else None
+    if not callable(analyze):
+        return _legacy_rule_sentiment(text)
+    try:
+        result = analyze(text)
+    except Exception:
+        return _legacy_rule_sentiment(text)
+
+    emotion = result.get("emotion", "neutral")
+    evidence = list(result.get("evidence", []))
+    legacy = _legacy_rule_sentiment(text)          # keeps escalation/urgency vocabulary
+    urgency = list(dict.fromkeys(legacy["urgency_hits"] + (["urgency wording"] if result.get("urgent") else [])))
+    escalation = legacy["escalation_hits"]
+    negative_points = _NEGATIVE_EMOTIONS.get(emotion, 0)
+    positive = emotion == "satisfaction"
+    label = "Negative" if negative_points else "Positive" if positive else "Neutral / Uncertain"
+    risk_points = negative_points + min(len(urgency), 1) + min(len(escalation), 2)
+    return {
+        "label": label,
+        "positive_words": evidence if positive else [],
+        "negative_words": evidence if negative_points else [],
+        "urgency_hits": urgency, "escalation_hits": escalation,
+        "risk_points": risk_points,
+        "risk_level": "High" if risk_points >= 3 else "Medium" if risk_points >= 1 else "Low",
+        "score": 1 if positive else -negative_points,
+        "emotion": emotion,
+    }
+
+
+def _legacy_rule_sentiment(text: str) -> dict:
     """Original transparent keyword sentiment/risk indicators."""
-    normalized = (text or "").lower()
+    normalized = (text or "").lower().replace("’", "'")
     words = re.findall(r"\b[\w']+\b", normalized)
     negative = [word for word in words if word in NEGATIVE_WORDS]
     positive = [word for word in words if word in POSITIVE_WORDS]
@@ -209,9 +247,35 @@ def rule_sentiment(text: str) -> dict:
     }
 
 
-    
+
 def detect_resolution(messages):
-    """Conservative, evidence-based resolution detection."""
+    """Single source of truth: context_manager.detect_resolution_status.
+
+    Earlier the dashboard and the module pipeline used two different
+    implementations that could disagree on the same chat.  The legacy
+    implementation below is only a fallback if the module cannot be imported.
+    """
+    module = MODULES.get("context_manager")
+    fn = getattr(module, "detect_resolution_status", None) if module else None
+    if callable(fn):
+        try:
+            result = fn(messages)
+            evidence = result.get("evidence") or []
+            if isinstance(evidence, str):
+                evidence = [f'Latest customer message: "{evidence}"'] if evidence else []
+            return {
+                "status": result.get("status", "Not confirmed"),
+                "resolved": bool(result.get("resolved", False)),
+                "evidence": evidence,
+                "next_action": result.get("next_action", "Follow up with the customer to confirm whether the issue is resolved."),
+            }
+        except Exception:
+            pass
+    return _legacy_detect_resolution(messages)
+
+
+def _legacy_detect_resolution(messages):
+    """Conservative, evidence-based resolution detection (fallback)."""
 
     customer_texts = [
         m["message"].strip()
@@ -369,11 +433,12 @@ def detect_resolution(messages):
     }
 
 def priority_from_score(score: float) -> str:
-    if score >= 80:
-        return "Critical"
+    """Same 0-100 scale as modules/escalation_assessment.py."""
     if score >= 60:
-        return "High"
+        return "Critical"
     if score >= 35:
+        return "High"
+    if score >= 20:
         return "Medium"
     return "Low"
 
@@ -495,15 +560,23 @@ def sentiment_details(messages: list[dict]) -> dict:
 
 def risk_assessment(messages: list[dict], escalation: dict | None = None, resolution: dict | None = None) -> dict:
     customer_text = " ".join(m["message"].lower() for m in messages if is_customer(m))
-    urgency_terms = ["urgent", "immediately", "asap", "unacceptable", "lawyer", "complaint",
-                     "manager", "escalate", "refund now", "chargeback", "never again"]
-    hits = [term for term in urgency_terms if term in customer_text]
-    score = min(100, len(hits) * 12 + sum(8 for m in messages if is_customer(m) and rule_sentiment(m["message"])["label"] == "Negative"))
+    customer_text = customer_text.replace("’", "'")
+    urgency_terms = ["urgent", "immediately", "asap", "unacceptable", "lawyer", "legal", "complaint",
+                     "manager", "supervisor", "escalate", "refund now", "chargeback", "never again",
+                     "scam", "fraud", "sue ", "ombudsman", "worst"]
+    hits = [term.strip() for term in urgency_terms if term in customer_text]
+    negative_points = sum(
+        _NEGATIVE_EMOTIONS.get(rule_sentiment(m["message"]).get("emotion"), 0)
+        for m in messages if is_customer(m)
+    )
+    # Fallback estimate, only used if the escalation module produced nothing.
+    score = min(100, len(hits) * 12 + negative_points * 7)
     if resolution and resolution.get("resolved"):
-        score = min(score, 25)  # stale historical frustration remains visible, current risk is discounted
+        score = min(score, 19)
     if escalation:
         try:
-            score = max(score, float(escalation.get("escalation_score", escalation.get("score", 0))))
+            # Single source of truth: modules/escalation_assessment.py (0-100).
+            score = float(escalation.get("risk_score", escalation.get("escalation_score", escalation.get("score", score))))
         except (TypeError, ValueError):
             pass
     return {"score": int(min(100, score)), "level": priority_from_score(score), "keywords": hits}
@@ -851,6 +924,13 @@ if selected_page == "Case Dashboard":
 
                     full_text = flatten_text(messages)
 
+                    # The intent is what the CUSTOMER asked for. Agent lines
+                    # ("let me check your order status") and the speaker
+                    # prefixes must not feed the classifier or the rules.
+                    customer_text = " ".join(
+                        message["message"] for message in customer_messages
+                    ) or full_text
+
                     # Main trained intent model
                     model_error = None
 
@@ -858,7 +938,7 @@ if selected_page == "Case Dashboard":
                         model = load_model()
 
                         model_intent, model_confidence, candidates = (
-                            model_predict(model, full_text)
+                            model_predict(model, customer_text)
                         )
 
                     except Exception as exc:
@@ -872,7 +952,7 @@ if selected_page == "Case Dashboard":
                         )
 
                     final_intent, correction_reason = hybrid_correct(
-                        full_text,
+                        customer_text,
                         model_intent
                     )
 
@@ -898,8 +978,10 @@ if selected_page == "Case Dashboard":
                         escalation.get("score")
                     )
 
-                    # Resolution-aware escalation adjustment
-                    if resolution["resolved"]:
+                    # escalation_assessment already lowers the risk when the
+                    # customer reports the issue as resolved, so the dashboard
+                    # keeps the module's score, level and handoff unchanged.
+                    if False:
 
                         try:
                             adjusted_score = (
@@ -1062,14 +1144,21 @@ if analysis:
 
     intent_rows = get_result_rows(results.get("intent_results"))
     # Derive conversation intent from message-level results
-    primary_message_intent = (
-        get_value(
-            intent_rows[0],
-            ["predicted_intent", "intent", "label"],
-            default=analysis["final_intent"]
-        )
-        if intent_rows else analysis["final_intent"]
+    # The module's summary skips greetings / thanks / "I checked my statement"
+    # style follow-ups, so a chat starting with "Hi" still gets the real issue.
+    primary_message_intent = get_value(
+        intent_summary,
+        ["primary_intent", "main_intent"],
+        default=analysis["final_intent"]
     )
+
+    # If every message was too vague, fall back to the whole-conversation
+    # prediction, and admit uncertainty when that is weak as well.
+    if str(primary_message_intent).lower() in ("unclear", "smalltalk", "not available"):
+        if analysis["model_confidence"] >= 0.12 and analysis["final_intent"] != "unknown":
+            primary_message_intent = analysis["final_intent"]
+        else:
+            primary_message_intent = "unclear"
 
     latest_message_intent = (
         get_value(
@@ -1147,7 +1236,7 @@ if analysis:
 
         c1.metric(
             "Primary intent",
-            clean_label(analysis["final_intent"])
+            clean_label(primary_message_intent)
         )
 
         c2.metric(
@@ -1211,17 +1300,22 @@ if analysis:
                 message.get("sequence_number", index)
             )
 
-            intent_label = (
-                intent_map.get(message_text.strip().lower())
-                or intent_map.get(sequence)
-                or intent_map.get(f"index_{index}")
-            )
-
-            emotion_label = (
-                emotion_map.get(message_text.strip().lower())
-                or emotion_map.get(sequence)
-                or emotion_map.get(f"index_{index}")
-            )
+            # Labels exist for customer messages only. Look up by sequence
+            # number first (unique), then by text. The old "index_N"
+            # fallback counted customer rows only, so agent bubbles could
+            # be tagged with a customer message's emotion/intent.
+            if customer_message:
+                intent_label = (
+                    intent_map.get(sequence)
+                    or intent_map.get(message_text.strip().lower())
+                )
+                emotion_label = (
+                    emotion_map.get(sequence)
+                    or emotion_map.get(message_text.strip().lower())
+                )
+            else:
+                intent_label = None
+                emotion_label = None
 
             with st.chat_message(chat_role):
 
@@ -1268,6 +1362,13 @@ if analysis:
             st.write(
                 f"**Risk level:** {clean_label(risk['level'])}"
             )
+
+            st.write(
+                f"**Handoff signal:** {clean_label(escalation.get('handoff_action', 'Not available'))}"
+                f" · **Urgent:** {'Yes' if escalation.get('urgent') else 'No'}"
+            )
+            if escalation.get("handoff_reason"):
+                st.caption(escalation["handoff_reason"])
 
             st.write(
                 f"**Latest emotion:** {clean_label(latest_emotion)}"

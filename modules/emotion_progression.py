@@ -1,12 +1,4 @@
-
-EMOTION_SEVERITY = {
-    "satisfaction": 0,
-    "neutral": 1,
-    "confusion": 2,
-    "sadness": 3,
-    "frustration": 4,
-    "anger": 5
-}
+from modules.emotion_analysis import EMOTION_SEVERITY
 
 
 def analyze_emotion_progression(emotion_results):
@@ -24,11 +16,11 @@ def analyze_emotion_progression(emotion_results):
     # Maintain chronological message order
     ordered = sorted(
         emotion_results,
-        key=lambda x: x.get("sequence_number", 0)
+        key=lambda x: x.get("sequence_number") or 0
     )
 
     emotions = [
-        item.get("emotion", "neutral").lower()
+        (item.get("emotion") or "neutral").lower()
         for item in ordered
     ]
 

@@ -1,5 +1,7 @@
 import re
 
+from modules.text_utils import normalize_text
+
 # Claims are extracted as customer-stated evidence, not treated as verified facts.
 CLAIM_PATTERNS = {
     "duplicate_charge": {
@@ -11,8 +13,8 @@ CLAIM_PATTERNS = {
         "positive": [r"\bpayment successful\b", r"\bpayment completed\b", r"\bpayment was made\b", r"\bsuccessful transaction\b"]
     },
     "delivery": {
-        "negative": [r"\bnot received\b", r"\bhaven't received\b", r"\bnever arrived\b", r"\bnot delivered\b", r"\bstill waiting\b"],
-        "positive": [r"\bdelivered\b", r"\breceived the package\b", r"\bpackage arrived\b", r"\border arrived\b"]
+        "negative": [r"\bnot received\b", r"\b(?:haven't|have not|didn't|did not|never) (?:received|got|gotten)\b", r"\bnever arrived\b", r"\bnot (?:been )?delivered\b", r"\bstill waiting\b", r"\b(?:hasn't|has not) arrived\b"],
+        "positive": [r"\bwas delivered\b", r"\bhas been delivered\b", r"\bi (?:received|got) (?:the |my )?(?:package|parcel|order|item)\b", r"\bpackage arrived\b", r"\border arrived\b", r"\bit arrived\b", r"\breceived the package\b"]
     },
     "refund": {
         "negative": [r"\brefund not received\b", r"\bhaven't received.*refund\b", r"\brefund is pending\b", r"\bwaiting for.*refund\b"],
@@ -22,7 +24,7 @@ CLAIM_PATTERNS = {
 
 
 def identify_claim(message):
-    text = message or ""
+    text = normalize_text(message or "")
     for topic, categories in CLAIM_PATTERNS.items():
         for status, patterns in categories.items():
             for pattern in patterns:
