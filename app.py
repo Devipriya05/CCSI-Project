@@ -849,7 +849,7 @@ with st.sidebar:
 
 st.markdown("""
 <div class="brand">
-    <div class="brand-icon">🧠</div>
+    <div class="brand-icon">🧠✨</div>
     <div>
         <div class="brand-name">Customer Support Intelligence</div>
         <div class="brand-caption">
