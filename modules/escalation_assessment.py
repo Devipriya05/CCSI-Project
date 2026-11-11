@@ -173,7 +173,17 @@ def assess_escalation(messages, emotion_results, progression, contact_stats, int
     # ---- handoff recommendation for the downstream bot ----------------------
     emergency = (score >= HANDOFF_THRESHOLD and urgent) or ((legal or safety) and score >= HANDOFF_THRESHOLD) or score >= CRITICAL_THRESHOLD
     if emergency:
-        action, why = "immediate_human_handoff", "High risk combined with urgency, a legal/fraud/safety signal, or critical risk."
+        triggers = []
+        if score >= HANDOFF_THRESHOLD and urgent:
+            triggers.append("urgent wording")
+        if legal:
+            triggers.append("legal/chargeback threat")
+        if safety:
+            triggers.append("fraud/duplicate-charge/safety wording")
+        if score >= CRITICAL_THRESHOLD:
+            triggers.append("critical risk score")
+        action = "immediate_human_handoff"
+        why = f"Immediate handoff (risk {score}): " + ", ".join(triggers) + "."
     elif score >= HANDOFF_THRESHOLD:
         action, why = "human_handoff", f"Risk score {score} is at or above the handoff threshold ({HANDOFF_THRESHOLD})."
     elif score >= MEDIUM_THRESHOLD:

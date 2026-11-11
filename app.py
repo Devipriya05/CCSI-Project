@@ -1407,7 +1407,18 @@ if analysis:
             for evidence in resolution.get("evidence", []):
                 st.caption(f"Evidence: {evidence}")
 
-            if analysis["low_confidence"]:
+            # Judge confidence on the message-level intents (rules count as 95%),
+            # not on the whole-chat model guess, which ignores the rules.
+            _conf_values = [
+                float(row.get("confidence") or 0)
+                for row in intent_rows
+                if str(row.get("predicted_intent")) != "smalltalk"
+            ]
+            _low_intent_confidence = (
+                max(_conf_values) < 40 if _conf_values else analysis["low_confidence"]
+            )
+
+            if _low_intent_confidence:
 
                 st.info(
                     "The intent prediction has low confidence. "
