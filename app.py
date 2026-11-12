@@ -715,33 +715,133 @@ import json
 
 st.markdown("""
 <style>
-        /* Sidebar readability */
-    [data-testid="stSidebar"] {
-        background-color: #F7F9FC !important;
-        color: #25344D !important;
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap');
+
+    :root {
+        --ink: #12302F;  --teal: #0F766E;  --teal-dark: #0B4F4A;  --amber: #F5A524;
+        --paper: #F6F2EA; --card: #FFFFFF; --line: #E4DCCB;       --muted: #6B7A78;
     }
 
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] span,
-    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
-        color: #25344D !important;
+    /* ---------- Base typography & background ---------- */
+    html, body, .stApp, [class*="css"], button, textarea, input {
+        font-family: 'DM Sans', sans-serif !important;
+    }
+    .stApp { background: var(--paper); }
+    h1, h2, h3, h4, .section-heading, .brand-name {
+        font-family: 'Fraunces', Georgia, serif !important;
+        color: var(--ink) !important;
+        letter-spacing: -0.01em;
+    }
+    hr { border-color: var(--line) !important; }
+
+    /* ---------- Hero header ---------- */
+    .brand {
+        display: flex; align-items: center; gap: 16px;
+        padding: 22px 26px; border-radius: 20px; margin-bottom: 8px;
+        background: linear-gradient(120deg, #0B4F4A 0%, #0F766E 55%, #14958A 100%);
+        box-shadow: 0 10px 30px rgba(11, 79, 74, .22);
+    }
+    .brand-icon {
+        font-size: 1.6rem; min-width: 58px; height: 58px; flex: none; padding: 0 12px;
+        white-space: nowrap; display: flex; align-items: center; justify-content: center;
+        border-radius: 16px; background: rgba(255, 255, 255, .15);
+    }
+    .brand .brand-name { color: #FFFFFF !important; font-size: 1.55rem; font-weight: 700; line-height: 1.15; }
+    .brand-caption { color: #CDEBE6; font-size: .93rem; margin-top: 2px; }
+
+    /* Brand block inside the dark sidebar: no card */
+    [data-testid="stSidebar"] .brand {
+        background: transparent; box-shadow: none; padding: 4px 0 0 0;
+    }
+    [data-testid="stSidebar"] .brand-icon { background: rgba(245, 165, 36, .18); color: var(--amber); }
+
+    /* ---------- Sidebar ---------- */
+    [data-testid="stSidebar"] { background: #0B2B2A !important; }
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span, [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+        color: #E6F2F0 !important;
+    }
+    [data-testid="stSidebar"] .stButton > button {
+        background: transparent; color: #F5A524; border: 1.5px solid #F5A524; border-radius: 12px;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover { background: #F5A524; color: #0B2B2A; }
+
+    /* ---------- Section headings ---------- */
+    .section-heading {
+        font-size: 1.4rem; font-weight: 700; margin: 22px 0 4px;
+        padding-left: 12px; border-left: 5px solid var(--amber);
     }
 
-    /* Main headings */
-    h1, h2, h3, h4,
-    .section-heading,
-    .brand-name {
-        color: #1F2A44 !important;
+    /* ---------- Metric cards ---------- */
+    [data-testid="stMetric"] {
+        background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--teal);
+        border-radius: 14px; padding: 14px 18px;
+        box-shadow: 0 1px 2px rgba(18, 48, 47, .06);
+    }
+    [data-testid="stMetricLabel"] p {
+        text-transform: uppercase; font-size: .72rem !important; letter-spacing: .09em; color: var(--muted) !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-family: 'Fraunces', Georgia, serif !important; color: var(--ink) !important; font-weight: 700;
+    }
+    /* Long labels such as "Duplicate Charge" must wrap, not be cut off with "..." */
+    [data-testid="stMetricValue"] div {
+        white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+        font-size: 1.45rem !important; line-height: 1.2 !important;
     }
 
-    /* Better input contrast */
+    /* ---------- Inputs & buttons ---------- */
     textarea, input {
-        background-color: #FFFFFF !important;
-        color: #25344D !important;
+        background: #FFFFFF !important; color: var(--ink) !important;
+        border: 1.5px solid #D8CDB6 !important; border-radius: 14px !important;
     }
+    textarea:focus, input:focus { border-color: var(--teal) !important; box-shadow: 0 0 0 3px rgba(15, 118, 110, .15) !important; }
+    .stButton > button[kind="primary"], button[data-testid="stBaseButton-primary"] {
+        background: var(--teal); border: none; border-radius: 14px; font-weight: 600;
+        letter-spacing: .02em; padding: .65rem 1rem; color: #fff;
+        box-shadow: 0 6px 16px rgba(15, 118, 110, .28); transition: all .15s ease;
+    }
+    .stButton > button[kind="primary"]:hover, button[data-testid="stBaseButton-primary"]:hover {
+        background: var(--teal-dark); transform: translateY(-1px);
+    }
+    .stDownloadButton > button { border-radius: 12px; border: 1.5px solid var(--teal); color: var(--teal-dark); font-weight: 600; }
+    .stDownloadButton > button:hover { background: var(--teal); color: #fff; }
+
+    /* ---------- Chat bubbles: customer = warm tint, agent = white ---------- */
+    [data-testid="stChatMessage"] {
+        background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+        background: #FFF6E3; border-color: #F1DDB0;
+    }
+
+    /* ---------- Expanders, alerts, charts ---------- */
+    [data-testid="stExpander"] { background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+    [data-testid="stAlert"] { border-radius: 14px; }
+
+    /* ---------- Status pills ---------- */
+    .pill { display: inline-block; padding: 3px 13px; border-radius: 999px; font-weight: 700; font-size: .82rem; letter-spacing: .02em; }
+    .pill-low      { background: #E3F4EA; color: #1F6B45; }
+    .pill-medium   { background: #FFF3D6; color: #8A6100; }
+    .pill-high     { background: #FFE6D2; color: #A4470A; }
+    .pill-critical { background: #FDE0E0; color: #9B1C1C; }
+    .pill-info     { background: #DDF0ED; color: #0B4F4A; }
 </style>
 """, unsafe_allow_html=True)
+
+
+_PILL_KIND = {
+    "low": "low", "medium": "medium", "high": "high", "critical": "critical",
+    "bot_continue": "low", "bot_with_monitoring": "medium",
+    "human_handoff": "high", "immediate_human_handoff": "critical",
+}
+
+
+def pill(text, kind=None) -> str:
+    """Small coloured badge, e.g. pill('Critical') or pill('Human Handoff', 'high')."""
+    key = (kind or str(text)).strip().lower().replace(" ", "_")
+    css = _PILL_KIND.get(key, "info")
+    return f'<span class="pill pill-{css}">{clean_label(text)}</span>'
 
 
 # ------------------------- Small helper functions -------------------------
@@ -1359,13 +1459,18 @@ if analysis:
                 min(max(int(risk["score"]), 0), 100)
             )
 
-            st.write(
-                f"**Risk level:** {clean_label(risk['level'])}"
+            st.markdown(
+                f"**Risk level:** {pill(risk['level'])}",
+                unsafe_allow_html=True
             )
 
-            st.write(
-                f"**Handoff signal:** {clean_label(escalation.get('handoff_action', 'Not available'))}"
-                f" · **Urgent:** {'Yes' if escalation.get('urgent') else 'No'}"
+            _handoff = escalation.get("handoff_action")
+            st.markdown(
+                "**Handoff signal:** "
+                + (pill(_handoff) if _handoff else "Not available")
+                + f" &nbsp;·&nbsp; **Urgent:** "
+                + (pill("Yes", "critical") if escalation.get("urgent") else pill("No", "low")),
+                unsafe_allow_html=True
             )
             if escalation.get("handoff_reason"):
                 st.caption(escalation["handoff_reason"])
